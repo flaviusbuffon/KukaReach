@@ -11,7 +11,8 @@
 '''
 
 # here put the import lib
-
+from dtaidistance import dtw
+from dtaidistance import dtw_visualisation as dtwvis
 from datetime import datetime
 import os
 import linecache
@@ -322,6 +323,72 @@ class KukaReachEnv(gym.Env):
         print(self.getRobotState(), file=f)
         f.close()
 
+    def clue(self):
+        objectState = np.array(p.getBasePositionAndOrientation(self.object_id)[0]).astype(np.float32)
+        dx = objectState[0]
+        dy = objectState[1]
+        dz = objectState[2]
+
+        kukaState = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
+        x = kukaState[0]
+        y = kukaState[1]
+        z = kukaState[2]
+
+        cnt = 0
+        
+        if (dx <= x and dy <= y):
+            str = "Left and Up"
+            print(str)
+            '''
+            text1 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=1.2,
+            )
+            cnt = text1
+            '''
+        if (dx <= x and dy >= y):
+            str = "Left and Down"
+            print(str)
+            '''
+            text2 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=0.2,
+            )
+            cnt = text2
+            '''
+
+        if (dx >= x and dy <= y):
+            str = "Right and Up"
+            print(str)
+            '''
+            text3 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=0.2,
+            )
+            cnt = text3
+            '''
+
+        if (dx >= x and dy >= y):
+            str = "Right and Down"
+            '''
+            text4 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=1.2,
+            )
+            cnt = text4
+            '''
+
+        return cnt
+
+
     def step(self, action):
         # TODO  fix 'for'
 
@@ -352,8 +419,9 @@ class KukaReachEnv(gym.Env):
 
         for i in range(200):
             p.stepSimulation()
+            self.clue()
             self.setCameraPicAndGetPic(self.kuka_id)
-            time.sleep(1 / 20)
+            time.sleep(1 / 200)
             for j in range(2):
                 self.write_log()
         # 40 hz
@@ -517,17 +585,16 @@ class KukaReachEnv(gym.Env):
     def close(self):
         p.disconnect()
 
-
-def getContent(cnt):
-    ini = linecache.getline('pos.txt', cnt)
+def getContent(cnt, filename='pos.txt'):
+    ini = linecache.getline(filename, cnt)
     ini = ini[1:]
     ini = ini[:-2]
     a, b, c = ini.split(",")
     return float(a), float(b), float(c)
 
 
-def getCount():
-    cnt = len(open(r'pos.txt', 'rU').readlines())
+def getCount(filename='pos.txt'):
+    cnt = len(open(filename, 'rU').readlines())
     return cnt
 
 
@@ -621,8 +688,37 @@ def currentWork(k, folder):
     timer.start()
     listLogFile = ['log1.txt', 'log2.txt', 'log3.txt', 'log4.txt']
     work(at=k, fileName=folder + "/" + listLogFile[k - 1])
+    files = folder + "/" + listLogFile[k - 1]
+    evalute(fileName=files)
 
 
+
+def evalute(fileName):
+    human_x = []
+    human_y = []
+    for i in range(1, getCount(filename=fileName) + 1):
+        x, y, z = getContent(i, filename=fileName)
+        human_x.append(x)
+        human_y.append(y)
+    robot_x = []
+    robot_y = []
+    for i in range(1, getCount(filename='logRobot.txt') + 1):
+        x, y, z = getContent(i, filename='logRobot.txt')
+        robot_x.append(x)
+        robot_y.append(y)
+
+    sx1 = np.array(human_x)
+    sy1 = np.array(human_y)
+    sx2 = np.array(robot_x)
+    sy2 = np.array(robot_y)
+
+    path1 = dtw.warping_path(sx1, sx2)
+    path2 = dtw.warping_path(sy1, sy2)
+
+    dtwvis.plot_warping(sx1, sx2, path1, filename="warpx.png")
+    path1 = dtw.warping_path(sy1, sy2)
+    dtwvis.plot_warping(sy1, sy2, path2, filename="warpy.png")
+    
 if __name__ == '__main__':
     # load file
     inS = input()
@@ -633,5 +729,5 @@ if __name__ == '__main__':
     currentWork(inS, strFolder)
 
 # TODO 添加对四个小区域分别加targetpoint的函数和api
-# TODO 添加评估模块(score & clue)
+
 
