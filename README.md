@@ -1,4 +1,4 @@
-# Kuka Reach Point
+# Kuka Reach
 
 This project is used to simulate human manipulation of the robotic arm and obtain coordinate records to compare the motion trajectory of the robotic arm under the reinforcement learning algorithm.
 
@@ -7,7 +7,7 @@ This project is used to simulate human manipulation of the robotic arm and obtai
 ## Dir Structure
 
 ```bash
-├── kuka-reach-point
+├── kuka-reach
     ├── .git
     ├── .idea
     ├── data        `contain cube urtf files`
