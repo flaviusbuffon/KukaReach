@@ -17,6 +17,9 @@ This project is used to simulate human manipulation of the robotic arm and obtai
     ├── logRobot.txt  `Movement trajectory of the end of the robotic arm !Under RL`
     ├── warpx.png	`dtw score of x coordinate`
     ├──  warpy.png	`dtw score of y coordinate`
+    ├── evalute
+    	├── pic1 'stroage wrap type 1 pic'
+    	├── pic2 'stroage wrap type 2 pic'
     └── log
         ├── "%Y%m%d_%H:%M:%S Task&"		`log files`
         ├──  ......
@@ -41,3 +44,11 @@ This project is used to simulate human manipulation of the robotic arm and obtai
 
 * 添加 `clue`
 * 添加 `dtw score`
+
+## Update GMT+8 6-17 4:40
+
+* 全部更改为由debugLine api 驱动，效果良好
+* 完善了对四个任务模块的支持
+* 模拟了完整轨迹
+* 更改象限
+* 计算分数

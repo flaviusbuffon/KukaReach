@@ -4,7 +4,7 @@
 @File    :   taskFirst.py
 @Time    :   2021/06/10 5:00:00
 @Author  :   JC Zhang
-@Version :   1.0
+@Version :   1.6
 @Contact :   jczhang@live.it
 @License :   GUN
 @Desc    :   None
@@ -27,11 +27,15 @@ import numpy as np
 from math import sqrt
 import random
 import time
+import threading
 from numpy import arange
 import logging
 import math
 from termcolor import colored
 import threading
+from rich.console import Console
+
+console = Console()
 
 
 # 一些变量 ######k
@@ -64,7 +68,7 @@ class KukaReachEnv(gym.Env):
     }
     max_steps_one_episode = 1000
 
-    def __init__(self, is_render=False, is_good_view=False, t=3, ot=0, filenameLog=""):
+    def __init__(self, is_render=False, is_good_view=False, t=0, ot=0, filenameLog=""):
         self.is_render = is_render
         self.is_good_view = is_good_view
         self.t = t
@@ -87,7 +91,7 @@ class KukaReachEnv(gym.Env):
         self.y_mid = 0
 
         self.x_low_action = 0.0
-        self.x_high_action = 0.5
+        self.x_high_action = 1
         self.y_low_action = -0.6
         self.y_high_action = 0.6
         self.z_low_action = -0.6
@@ -135,7 +139,15 @@ class KukaReachEnv(gym.Env):
 
         self.seed()
 
-        self.resetInit()
+        self.reset()
+
+    def addObject2(self):
+        self.ranX2 = random.uniform(0, 1)
+        self.ranY2 = random.uniform(-0.6, 0.6)
+        self.object_id2 = p.loadURDF(os.path.join(self.urdf_root_path, "random_urdfs/000/000.urdf"),
+                                     basePosition=[self.ranX2,
+                                                   self.ranY2,
+                                                   0.01])
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -143,40 +155,33 @@ class KukaReachEnv(gym.Env):
 
     def addObstacle(self):
         self.obstacle_id = p.loadURDF("./data/cube.urdf",
-                                      basePosition=[random.uniform(self.x_low_obs, self.ranX - 0.1),
-                                                    random.uniform(self.y_low_obs, self.y_mid),
+                                      basePosition=[random.uniform(0, self.ranXP),
+                                                    random.uniform(-0.6, 0.6),
+                                                    0.01],
+                                      globalScaling=0.1,
+                                      flags=p.URDF_USE_SELF_COLLISION)
+
+    def addObstacle2(self):
+        self.obstacle_id = p.loadURDF("./data/cube.urdf",
+                                      basePosition=[random.uniform(0, self.ranX2),
+                                                    random.uniform(-0.6, 0.6),
                                                     0.01],
                                       globalScaling=0.1,
                                       flags=p.URDF_USE_SELF_COLLISION)
 
     def addObstacleOut(self):
         self.obstacle_id = p.loadURDF("./data/cube.urdf",
+                                      basePosition=[random.uniform(0, self.ranXP),
+                                                    random.uniform(-0.6, 0.6),
+                                                    0.01],
+                                      globalScaling=0.1,
+                                      flags=p.URDF_USE_SELF_COLLISION)
+        '''self.obstacle_id = p.loadURDF("./data/cube.urdf",
                                       basePosition=[random.uniform(self.x_low_action, (self.x_low_action + self.x_high_action) / 2),
                                                     random.uniform(self.y_low_action, 0),
                                                     0.01],
                                       globalScaling=0.1,
-                                      flags=p.URDF_USE_SELF_COLLISION)
-
-    def resetInit(self):
-        # print(self.t)
-
-        if self.t == 1:
-            self.reset()
-
-        elif self.t == 2:
-            self.reset()
-            self.reset()
-
-        elif self.t == 3:
-            self.reset()
-            self.addObstacle()
-
-        elif self.t == 4:
-            self.addObstacleOut()
-            self.reset()
-            # self.resetOut()
-        else:
-            exit()
+                                      flags=p.URDF_USE_SELF_COLLISION)'''
 
     def reset(self):
         # p.connect(p.GUI)
@@ -189,6 +194,7 @@ class KukaReachEnv(gym.Env):
 
         # 外界大的边界 蓝色
         # 竖线
+
         p.addUserDebugLine(
             lineFromXYZ=[self.x_low_action, self.y_low_action, 0],
             lineToXYZ=[self.x_low_action, self.y_high_action, 0],
@@ -198,7 +204,8 @@ class KukaReachEnv(gym.Env):
         p.addUserDebugLine(
             lineFromXYZ=[self.x_high_action, self.y_low_action, 0],
             lineToXYZ=[self.x_high_action, self.y_high_action, 0],
-            lineColorRGB=[0, 0, 255]
+            lineColorRGB=[0, 0, 255],
+            lineWidth=2
         )
         # 横线
 
@@ -217,6 +224,7 @@ class KukaReachEnv(gym.Env):
         #　内部小边界
 
         # 两条较长的横线
+        '''
         p.addUserDebugLine(
             lineFromXYZ=[self.x_low_obs - 0.2, self.y_low_obs, 0],
             lineToXYZ=[self.x_high_obs + 0.2, self.y_low_obs, 0],
@@ -234,19 +242,29 @@ class KukaReachEnv(gym.Env):
             lineToXYZ=[(self.x_low_obs + self.x_high_obs) / 2, self.y_high_action + 0.2, 0],
             lineColorRGB=[255, 96, 0]
         )
+        '''
 
         p.loadURDF(os.path.join(self.urdf_root_path, "plane.urdf"), basePosition=[0, 0, -0.65])
         self.kuka_id = p.loadURDF(os.path.join(self.urdf_root_path, "kuka_iiwa/model.urdf"), useFixedBase=True)
+
         p.loadURDF(os.path.join(self.urdf_root_path, "table/table.urdf"), basePosition=[0.3, 0, -0.65 * 2], globalScaling=2)
         # p.loadURDF(os.path.join(self.urdf_root_path, "tray/traybox.urdf"),basePosition=[0.55,0,0])
         # object_id=p.loadURDF(os.path.join(self.urdf_root_path, "random_urdfs/000/000.urdf"), basePosition=[0.53,0,0.02])
 
-        self.ranX = random.uniform(self.x_low_obs, self.x_mid)
-        self.ranY = random.uniform(self.y_low_obs, self.y_mid)
-        self.ranXP = random.uniform(self.x_low_obs, (self.x_low_action + self.x_high_action) / 2)
-        self.ranYP = random.uniform(self.y_low_action, 0)
+        self.ranX = random.uniform(0, 1)
+        self.ranY = random.uniform(-0.6, 0.6)
 
-        if (self.ot == 0):
+        self.ranXP = self.ranX
+        self.ranYP = self.ranY
+        '''self.ranXP = random.uniform(self.x_low_obs, (self.x_low_action + self.x_high_action) / 2)
+        self.ranYP = random.uniform(self.y_low_action, 0)
+        '''
+        self.object_id = p.loadURDF(os.path.join(self.urdf_root_path, "random_urdfs/000/000.urdf"),
+                                    basePosition=[self.ranX,
+                                                  self.ranY,
+                                                  0.01])
+
+        '''if (self.ot == 0):
             self.object_id = p.loadURDF(os.path.join(self.urdf_root_path, "random_urdfs/000/000.urdf"),
                                         basePosition=[self.ranX,
                                                       self.ranY,
@@ -255,7 +273,7 @@ class KukaReachEnv(gym.Env):
             self.object_id = p.loadURDF(os.path.join(self.urdf_root_path, "random_urdfs/000/000.urdf"),
                                         basePosition=[self.ranXP,
                                                       self.ranYP,
-                                                      0.01])
+                                                      0.01])'''
 
         self.num_joints = p.getNumJoints(self.kuka_id)
 
@@ -273,7 +291,7 @@ class KukaReachEnv(gym.Env):
         self.object_pos = p.getBasePositionAndOrientation(self.object_id)[0]
         return np.array(self.object_pos).astype(np.float32)
         # return np.array(self.robot_pos_obs).astype(np.float32)
-
+    '''
     def getInversePoisition(self, Uid, position_desired, orientation_desired=[]):
         joints_info = []
         joint_damping = []
@@ -315,27 +333,32 @@ class KukaReachEnv(gym.Env):
                                     positionGain=0.03,
                                     velocityGain=1)
         return
+        '''
 
-    def write_log(self):
+    def write_log(self, pos):
         filename = self.filenameLog
         # print(datetime.now().second)
+        x = pos[0]
+        y = pos[1]
+        z = pos[2]
+        out = "(" + str(x) + "," + str(y) + "," + str(z) + ")"
         f = open(filename, "a")
-        print(self.getRobotState(), file=f)
+        print(out, file=f)
         f.close()
 
-    def clue(self):
+    def clue_debugLine(self, pos):
+
         objectState = np.array(p.getBasePositionAndOrientation(self.object_id)[0]).astype(np.float32)
         dx = objectState[0]
         dy = objectState[1]
         dz = objectState[2]
 
-        kukaState = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
-        x = kukaState[0]
-        y = kukaState[1]
-        z = kukaState[2]
+        x = pos[0]
+        y = pos[1]
+        z = pos[2]
 
         cnt = 0
-        
+
         if (dx <= x and dy <= y):
             str = "Left and Up"
             print(str)
@@ -388,13 +411,88 @@ class KukaReachEnv(gym.Env):
 
         return cnt
 
+    """
+    def clue(self):
+        objectState = np.array(p.getBasePositionAndOrientation(self.object_id)[0]).astype(np.float32)
+        dx = objectState[0]
+        dy = objectState[1]
+        dz = objectState[2]
+
+        kukaState = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
+        x = kukaState[0]
+        y = kukaState[1]
+        z = kukaState[2]
+
+        cnt = 0
+
+        if (dx <= x and dy <= y):
+            str = "Left and Up"
+            print(str)
+            '''
+            text1 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=1.2,
+            )
+            cnt = text1
+            '''
+        if (dx <= x and dy >= y):
+            str = "Left and Down"
+            print(str)
+            '''
+            text2 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=0.2,
+            )
+            cnt = text2
+            '''
+
+        if (dx >= x and dy <= y):
+            str = "Right and Up"
+            print(str)
+            '''
+            text3 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=0.2,
+            )
+            cnt = text3
+            '''
+
+        if (dx >= x and dy >= y):
+            str = "Right and Down"
+            '''
+            text4 = p.addUserDebugText(
+                text=str,
+                textPosition=[x, y, z],
+                textColorRGB=[0, 1, 0],
+                textSize=1.2,
+            )
+            cnt = text4
+            '''
+
+        return cnt
+        """
+
+    def debugLine(self, pos1, pos2):
+        p.addUserDebugLine(pos1, pos2, [0, 1, 0], lineWidth=2)
+        self.clue_debugLine(pos1)
+        self.write_log(pos1)
+        return self._reward(pos1)
 
     def step(self, action):
-        # TODO  fix 'for'
+
+        self.new_robot_pos = action
+        # print(action)
 
         # for i in range(1, 4000):
         # p.stepSimulation()
         # self.get_to_place(action)
+
         self.new_robot_pos = action
         print(action)
         self.robot_joint_positions = p.calculateInverseKinematics(
@@ -417,43 +515,34 @@ class KukaReachEnv(gym.Env):
                 velocityGain=1
             )
 
+
+        havePrevPos = 0
+
         for i in range(200):
             p.stepSimulation()
-            self.clue()
             self.setCameraPicAndGetPic(self.kuka_id)
-            time.sleep(1 / 200)
-            for j in range(2):
-                self.write_log()
+
+            # draw!
+
+            Pos = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
+            if havePrevPos == 1:
+                p.addUserDebugLine(prevPos, Pos, [0, 1, 0], lineWidth=2)
+            prevPos = Pos
+
+            havePrevPos = 1
+
+
+
+
+            time.sleep(1 / 2000)
+            # for j in range(2):
+            #     self.write_log()
         # 40 hz
 
         if self.is_good_view:
             time.sleep(0.05)
 
         return self._reward(action)
-
-        '''
-        stepNum = 5
-        robot7StartPos = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
-        robot7EndPos = np.array([0.1, 0.1, 0.1])
-        robot7EndOrientation = p.getQuaternionFromEuler([0, 0, 0])
-        startPos = np.array(robot7StartPos)
-        endPos = robot7EndPos
-        stepArray = (endPos - startPos) / stepNum
-        p.resetBasePositionAndOrientation(self.kuka_id, [0, 0, 0], robot7EndOrientation)
-        for i in range(stepNum):
-            robotStepPos = list(stepArray + startPos)
-            target = p.calculateInverseKinematics(self.kuka_id, 6, robotStepPos, targetOrientation=robot7EndPos)
-            p.setJointMotorControlArray(self.kuka_id, range(7), p.POSITION_CONTROL, targetPositions=target)
-            for j in range(100):
-                p.stepSimulation()
-                time.sleep(1. / 100.)
-            startPos = np.array(robotStepPos)
-
-        if self.is_good_view:
-            time.sleep(0.05)
-
-        return self._reward()
-        '''
 
     def setCameraPicAndGetPic(self, robot_id : int, width : int = 224, height : int = 224, physicsClientId : int = 0):
         """
@@ -521,14 +610,16 @@ class KukaReachEnv(gym.Env):
 
     def getRobotState(self):
         return p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
+    
 
     def _reward(self, action):
 
         # 一定注意是取第4个值，请参考pybullet手册的这个函数返回值的说明
-        self.robot_state = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
+        # self.robot_state = p.getLinkState(self.kuka_id, self.num_joints - 1)[4]
         # self.object_state=p.getBasePositionAndOrientation(self.object_id)
         # self.object_state=np.array(self.object_state).astype(np.float32)
         #
+        self.robot_state = action
         self.object_state = np.array(
             p.getBasePositionAndOrientation(self.object_id)[0]).astype(np.float32)
 
@@ -537,7 +628,7 @@ class KukaReachEnv(gym.Env):
         square_dz = (self.robot_state[2] - self.object_state[2])**2
 
         # 用机械臂末端和物体的距离作为奖励函数的依据
-        self.distance = sqrt(square_dx + square_dy + square_dz)
+        self.distance = sqrt(square_dx + square_dy)
         # print(self.distance)
 
         x = self.robot_state[0]
@@ -559,8 +650,6 @@ class KukaReachEnv(gym.Env):
         else:
             reward = 0
             self.terminal = 0
-
-
 
         '''
         if terminated:
@@ -585,11 +674,14 @@ class KukaReachEnv(gym.Env):
     def close(self):
         p.disconnect()
 
+
 def getContent(cnt, filename='pos.txt'):
     ini = linecache.getline(filename, cnt)
     ini = ini[1:]
     ini = ini[:-2]
+    print(ini)
     a, b, c = ini.split(",")
+    c = 0.0
     return float(a), float(b), float(c)
 
 
@@ -598,88 +690,10 @@ def getCount(filename='pos.txt'):
     return cnt
 
 
-def work(at, fileName):
-
-    rangeTime = 1
-
-    if (at == 1 or at == 3):
-        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
-        for i in range(rangeTime):
-            loop = 1
-            print(loop)
-            # TODO  add multi coordinates support
-            for j in range(1, getCount() + 1):
-
-                action = np.array(getContent(j))
-                obs, reward, done, info, robot_obs = env.step(action)
-                # print(colored("info={}".format(info),"cyan"))
-                if done == 1:
-                    print("done")
-                    break
-        print()
-
-    elif (at == 2):
-        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
-        for i in range(rangeTime):
-            loop = 1
-            # TODO  add multi coordinates support
-            for j in range(1, getCount() + 1):
-                print(j)
-                action = np.array(getContent(j))
-                obs, reward, done, info, robot_obs = env.step(action)
-                # print(colored("info={}".format(info),"cyan"))
-                if done == 1:
-                    print("done")
-                    break
-        print()
-
-        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, ot=1, filenameLog=fileName)
-        for i in range(rangeTime):
-            loop = 1
-            # TODO  add multi coordinates support
-            for j in range(1, getCount() + 1):
-                print(j)
-                action = np.array(getContent(j))
-                obs, reward, done, info, robot_obs = env.step(action)
-                # print(colored("info={}".format(info),"cyan"))
-                if done == 1:
-                    print("done")
-                    break
-        print()
-
-    elif (at == 4):
-        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
-        for i in range(rangeTime):
-            loop = 1
-            # TODO  add multi coordinates support
-            for j in range(1, getCount() + 1):
-                print(j)
-                action = np.array(getContent(j))
-                obs, reward, done, info, robot_obs = env.step(action)
-                # print(colored("info={}".format(info),"cyan"))
-                if done == 1:
-                    print("done")
-                    break
-        print()
-
-        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, ot=1, filenameLog=fileName)
-        for i in range(rangeTime):
-            loop = 1
-            # TODO  add multi coordinates support
-            for j in range(1, getCount() + 1):
-                print(j)
-                action = np.array(getContent(j))
-                obs, reward, done, info, robot_obs = env.step(action)
-                # print(colored("info={}".format(info),"cyan"))
-                if done == 1:
-                    print("done")
-                    break
-        print()
-
-
 def inter():
     print("Time so Long!")
     os._exit(0)
+
 
 def currentWork(k, folder):
     global timer
@@ -687,16 +701,24 @@ def currentWork(k, folder):
 
     timer.start()
     listLogFile = ['log1.txt', 'log2.txt', 'log3.txt', 'log4.txt']
-    work(at=k, fileName=folder + "/" + listLogFile[k - 1])
     files = folder + "/" + listLogFile[k - 1]
-    evalute(fileName=files)
+    global origin
+    origin = files
+    work(at=k, fileName=folder + "/" + listLogFile[k - 1])
+    evalute(fileName=origin)
 
+
+def stepEvalute():
+    k = 20
+    k_current = evalute(origin)
+    score = max((k - k_current), 0) / k
+    return score
 
 
 def evalute(fileName):
     human_x = []
     human_y = []
-    for i in range(1, getCount(filename=fileName) + 1):
+    for i in range(1, getCount(filename=fileName)):
         x, y, z = getContent(i, filename=fileName)
         human_x.append(x)
         human_y.append(y)
@@ -712,13 +734,171 @@ def evalute(fileName):
     sx2 = np.array(robot_x)
     sy2 = np.array(robot_y)
 
-    path1 = dtw.warping_path(sx1, sx2)
+    '''path1 = dtw.warping_path(sx1, sx2)
     path2 = dtw.warping_path(sy1, sy2)
-
-    dtwvis.plot_warping(sx1, sx2, path1, filename="warpx.png")
+    dtwvis.plot_warping(sx1, sx2, path1, filename="./evalute/pic1/warpx.png")
     path1 = dtw.warping_path(sy1, sy2)
-    dtwvis.plot_warping(sy1, sy2, path2, filename="warpy.png")
-    
+    dtwvis.plot_warping(sy1, sy2, path2, filename="./evalute/pic1/warpy.png")'''
+
+    # type two evalute
+    random.seed(1)
+    maxLen = max(len(sx1), len(sx2))
+    for idx in range(maxLen):
+        if random.random() < 0.05:
+            sx2[idx] += (random.random() - 0.5) / 2
+    d, paths = dtw.warping_paths(sx1, sx2, window=25, psi=2)
+    best_paths = dtw.best_path(paths)
+    dtwvis.plot_warpingpaths(sx1, sx2, paths, best_paths, filename="./evalute/pic2/wrapx.png")
+    for idx in range(maxLen):
+        if random.random() < 0.05:
+            sy2[idx] += (random.random() - 0.5) / 2
+    d, paths = dtw.warping_paths(sy1, sy2, window=25, psi=2)
+    best_paths = dtw.best_path(paths)
+    dtwvis.plot_warpingpaths(sy1, sy2, paths, best_paths, filename="./evalute/pic2/wrapy.png")
+
+    return d
+
+
+def work(at, fileName):
+
+    rangeTime = 1
+    te = 0
+
+    if (at == 1):
+        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
+        for i in range(rangeTime):
+            loop = 1
+
+            for j in range(1, getCount()):
+                action = np.array(getContent(j))
+                action2 = np.array(getContent(j + 1))
+                
+                '''tk1 = threading.Thread(target=env.debugLine, args=(action, action2))
+                tk2 = threading.Thread(target=env.step, args=(action))
+                tk1.start()
+                tk2.start()
+                tk1.join()
+                tk2.join()'''
+                env.step(action)
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    te = 1
+                    break
+        console.print("Finished", style="bold cyan")
+        if (te == 1):
+            console.print("Successfully reach target", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target", style="bold red")
+
+    elif (at == 2):
+        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
+        for i in range(rangeTime):
+            loop = 1
+            # TODO  add multi coordinates support
+            for j in range(1, getCount("pos.txt")):
+                action = np.array(getContent(j))
+                action2 = np.array(getContent(j + 1))
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    te = 1
+                    break
+        console.print("Finished Find first object", style="bold cyan")
+        if (te == 1):
+            console.print("Successfully reach target 1", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target 1", style="bold red")
+        env.addObject2()
+        for i in range(rangeTime):
+            loop = 1
+            # TODO  add multi coordinates support
+            for j in range(1, getCount("pos2.txt")):
+                action = np.array(getContent(j, "pos2.txt"))
+                action2 = np.array(getContent(j + 1, "pos2.txt"))
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    break
+        console.print("Finished Find second object", style="bold cyan")
+        if te == 1:
+            console.print("Successfully reach target 2", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target 2", style="bold red")
+
+    elif (at == 3):
+        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
+        env.addObstacle()
+        for i in range(rangeTime):
+            loop = 1
+
+            for j in range(1, getCount()):
+                action = np.array(getContent(j))
+                action2 = np.array(getContent(j + 1))
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+                # obs, reward, done, info, robot_obs = env.step(action)
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    te = 1
+                    break
+        console.print("Finished", style="bold cyan")
+        if te == 1:
+            console.print("Successfully reach target bypass 1 obstacle", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target bypass 1 obstacle", style="bold red")
+
+    elif (at == 4):
+        env = KukaReachEnv(is_render=True, is_good_view=False, t=at, filenameLog=fileName)
+        for i in range(rangeTime):
+            loop = 1
+            # TODO  add multi coordinates support
+            for j in range(1, getCount("pos.txt")):
+                action = np.array(getContent(j))
+                action2 = np.array(getContent(j + 1))
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    te = 1
+                    break
+        console.print("Finished ", style="bold cyan")
+        if te == 1:
+            console.print("Successfully reach target bypass first obstacle", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target bypass first obstacle", style="bold red")
+
+        env.addObject2()
+        env.addObstacle2()
+
+        for i in range(rangeTime):
+            loop = 1
+            # TODO  add multi coordinates support
+            for j in range(1, getCount("pos2.txt")):
+                action = np.array(getContent(j, "pos2.txt"))
+                action2 = np.array(getContent(j + 1, "pos2.txt"))
+                obs, reward, done, info, robot_obs = env.debugLine(action, action2)
+                # print(colored("info={}".format(info),"cyan"))
+                if done == 1:
+                    print("done")
+                    break
+        console.print("Finished ", style="bold cyan")
+        if te == 1:
+            console.print("Successfully reach target bypass second obstacle", style="bold green")
+            te = 0
+        else:
+            console.print("Failed reach target bypass second obstacle", style="bold red")
+
+
 if __name__ == '__main__':
     # load file
     inS = input()
@@ -727,7 +907,3 @@ if __name__ == '__main__':
 
     os.makedirs(strFolder)
     currentWork(inS, strFolder)
-
-# TODO 添加对四个小区域分别加targetpoint的函数和api
-
-
